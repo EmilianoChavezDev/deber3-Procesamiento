@@ -1,5 +1,7 @@
 import numpy as np
 import cv2
+import tkinter as tk
+from tkinter import messagebox
 
 class ImageProcessingManager():
   """
@@ -22,6 +24,9 @@ class ImageProcessingManager():
     
     # Estructura de puntos/lineas
     self.stack_lines = []
+    
+      
+
 
   
   def rgb_to_hex(self, rgb):
@@ -29,7 +34,13 @@ class ImageProcessingManager():
       Conversor de un string hexadecimal a arreglos.
       Fuente: https://www.codespeedy.com/convert-rgb-to-hex-color-code-in-python/
     """
-    return '%02x%02x%02x' % rgb
+    rgb= rgb.lstrip('#')
+    length = len(rgb)
+    rgb = tuple(int(rgb[i:i+length//3],16) for i in range(0, length,length//3))
+    return rgb
+
+
+
 
   def last_image(self):
     """
@@ -60,19 +71,23 @@ class ImageProcessingManager():
       self.stack_images.clear();
       imagen = cv2.imread(image_path)
       imagen_redimensionada = cv2.resize(imagen, (self.DEFAULT_WIDTH, self.DEFAULT_HEIGHT))
-      self.stack_images.append(imagen_redimensionada)
+      return self.stack_images.append(imagen_redimensionada)
       
     
   def save_image(self, filename):
+    # para verificar si no tiene ninguna extension al momento
+    #de guardar la imagen
+    if not filename.endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif')):
+        filename += ".jpg"
     cv2.imwrite(filename, self.stack_images[-1])
-    pass
+
 
   def undo_changes(self):
     """
       Eliminamos el ultimo elemento guardado.
     """
-    self.stack_images.pop()
-    pass
+    return self.stack_images.pop()
+   
 
 
   def save_points(self, x1, y1, x2, y2, line_width, color):
@@ -81,35 +96,45 @@ class ImageProcessingManager():
     """
     self.stack_lines.append((x1, y1, x2, y2, line_width, color))
     pass
+  
+  
 
   def add_lines_to_image(self):
-        """
-        Creamos una matriz, con un conjunto de lineas.
-        Estas lineas se obtienen de self.stack_lines.
+    """
+    Creamos una matriz, con un conjunto de lineas.
+    Estas lineas se obtienen de self.stack_lines.
 
-        Finalmente guardamos a nuestra pila de imagenes: self.stack_images.
+    Finalmente guardamos a nuestra pila de imagenes: self.stack_images.
 
-        Ayuda: ver documentacion de "cv2.line" para dibujar lineas en una matriz
-        Ayuda 2: no se olviden de limpiar self.stack_lines
-        Ayuda 3: utilizar el metodo rgb_to_hex para convertir los colores
-        """
-        image = self.stack_images[-1].copy()
-        for x1, y1, x2, y2, line_width, color in self.stack_lines:
-            cv2.line(image, (x1, y1), (x2, y2), self.rgb_to_hex(color), line_width)
-        self.stack_images.append(image)      
-        self.stack_lines.clear()
+    Ayuda: ver documentacion de "cv2.line" para dibujar lineas en una matriz
+    Ayuda 2: no se olviden de limpiar self.stack_lines
+    Ayuda 3: utilizar el metodo rgb_to_hex para convertir los colores
+    """
+    image = self.stack_images[-1].copy()
+    for x1, y1, x2, y2, line_width, color in self.stack_lines:
+        # Me aseguro de que line_width se pase como entero
+        line_width = int(line_width)
+        cv2.line(image, (x1, y1), (x2, y2), self.rgb_to_hex(color), line_width)
+    self.stack_images.append(image)      
+    self.stack_lines.clear()
+
+        
 
   def black_and_white_image(self):
         """
-        Hacemos una copia de la ultima imagen.
-        La Convertimos a blanco y negro.
-        Guardamos a la estructura self.stack_images
+        Hacemos una copia de la última imagen.
+        Convertimos a blanco y negro.
+        Guardamos en la estructura self.stack_images.
         Retornamos la imagen procesada.
         """
-        last = self.stack_images[-1].copy()
-        gray = cv2.cvtColor(last, cv2.COLOR_BGR2GRAY) 
-        self.stack_images.append(gray)
-        return gray
+        last = self.stack_images[-1]
+        bgr_image = cv2.cvtColor(last, cv2.COLOR_RGB2BGR)
+      
+        gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
+     
+        self.stack_images.append(gray_image)    
+        
+        return gray_image
 
 
 
@@ -123,28 +148,31 @@ class ImageProcessingManager():
     """
 
     last = self.stack_images[-1].copy()
-    # Calculamos el negativo de la imagen
     negative_image = 255 - last
     self.stack_images.append(negative_image)
     return negative_image
 
+
   def global_equalization_image(self):
     """
-      Hacemos una copia de la ultima imagen.
-      Equalizamos la imagen.
-      Guardamos a la estructura self.stack_images
-      Retornamos la imagen procesada.
+    Hacemos una copia de la ultima imagen.
+    Equalizamos la imagen.
+    Guardamos a la estructura self.stack_images
+    Retornamos la imagen procesada.
     """
 
     last = self.stack_images[-1].copy()
-    # Convertimos la imagen a escala de grises si no lo está
     gray_image = cv2.cvtColor(last, cv2.COLOR_BGR2GRAY)
-    # Equalizamos la imagen
     equalized_image = cv2.equalizeHist(gray_image)
-    self.stack_images.append(cv2.cvtColor(equalized_image, cv2.COLOR_GRAY2BGR))
+    
+    bgr_equalized_image = cv2.cvtColor(equalized_image, cv2.COLOR_GRAY2BGR)
+    
+    self.stack_images.append(bgr_equalized_image)
+    
     return equalized_image
-  
-  
+
+
+
   
   def CLAHE_equalization_image(self, grid=(8, 8), clipLimit=2.0):
     """
@@ -154,13 +182,9 @@ class ImageProcessingManager():
       Retornamos la imagen procesada.
     """
     last = self.stack_images[-1].copy()
-    # Convertimos la imagen a escala de grises si no lo está
     gray_image = cv2.cvtColor(last, cv2.COLOR_BGR2GRAY)
-    # Creamos el objeto CLAHE (Contrast Limited Adaptive Histogram Equalization)
     clahe = cv2.createCLAHE(clipLimit=clipLimit, tileGridSize=grid)
-    # Aplicamos la equalización adaptativa del histograma con CLAHE
     clahe_equalized_image = clahe.apply(gray_image)
-    # Convertimos la imagen de nuevo a color
     colored_clahe_equalized_image = cv2.cvtColor(clahe_equalized_image, cv2.COLOR_GRAY2BGR)
     self.stack_images.append(colored_clahe_equalized_image)
     return colored_clahe_equalized_image
@@ -175,7 +199,9 @@ class ImageProcessingManager():
     """
 
     last = self.stack_images[-1].copy()
-    # Ajustamos el contraste y brillo de la imagen
     adjusted_image = cv2.convertScaleAbs(last, alpha=alpha, beta=beta)
     self.stack_images.append(adjusted_image)
     return adjusted_image
+  
+  
+ 
